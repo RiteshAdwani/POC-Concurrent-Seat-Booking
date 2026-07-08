@@ -5,27 +5,42 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { MAX_SEATS_PER_BOOKING } from "@/constants/seat";
-import type { SeatId } from "@/types/seat";
+import { ErrorMessages } from "@/constants/messages.constants";
+import { SeatStatus, type SeatId } from "@/types/seat";
 
 interface SeatProps {
   seatId: SeatId;
+  status: SeatStatus;
   isSelected: boolean;
   isSelectable: boolean;
   onToggle: (seatId: SeatId) => void;
 }
 
-export function Seat({
+/**
+ * @description Renders a single seat button, deriving its visual state (default/selected/dimmed)
+ * and tooltip reason from its server status and current selectability.
+ */
+export const Seat = ({
   seatId,
+  status,
   isSelected,
   isSelectable,
   onToggle,
-}: SeatProps) {
+}: SeatProps) => {
+  /**
+   * @description No-ops when the seat isn't selectable (cap reached or already
+   * held/booked); otherwise reports the click up to the parent's toggle handler.
+   */
   const handleSeatButtonClick = () => {
     if (isSelectable) {
       onToggle(seatId);
     }
   };
+
+  const unavailableReason =
+    status !== SeatStatus.Available
+      ? ErrorMessages.SeatUnavailable
+      : ErrorMessages.SeatSelectionLimitReached;
 
   return (
     <Tooltip>
@@ -40,9 +55,7 @@ export function Seat({
           {seatId}
         </Button>
       </TooltipTrigger>
-      {!isSelectable && (
-        <TooltipContent>Max {MAX_SEATS_PER_BOOKING} seats per booking</TooltipContent>
-      )}
+      {!isSelectable && <TooltipContent>{unavailableReason}</TooltipContent>}
     </Tooltip>
   );
 }
