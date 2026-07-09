@@ -1,13 +1,19 @@
-import { COLS, MAX_SEATS_PER_BOOKING, ROWS, buildSeatId } from '@/constants/seat'
+import { COLS, MAX_SEATS_PER_BOOKING, ROWS, buildSeatId } from '@/constants/seat.constants'
 import { Seat } from '@/components/Seat'
-import type { SeatId } from '@/types/seat'
+import { useSeatSocket } from '@/state/useSeatSocket'
+import { SeatStatus, type SeatId } from '@/types/seat'
 
 interface SeatGridProps {
   selectedSeatIds: Set<SeatId>
   onToggleSeat: (seatId: SeatId) => void
 }
 
-export function SeatGrid({ selectedSeatIds, onToggleSeat }: SeatGridProps) {
+/**
+ * @description Renders the 10x10 seat grid, combining real seat status from the socket context
+ * with the caller's local selection state to decide each seat's selectability.
+ */
+export const SeatGrid = ({ selectedSeatIds, onToggleSeat }: SeatGridProps) => {
+  const { seats } = useSeatSocket()
   const isAtCap = selectedSeatIds.size >= MAX_SEATS_PER_BOOKING
 
   return (
@@ -26,13 +32,16 @@ export function SeatGrid({ selectedSeatIds, onToggleSeat }: SeatGridProps) {
           </div>
           {COLS.map((col) => {
             const seatId = buildSeatId(row, col)
+            const status = seats[seatId]?.status ?? SeatStatus.Available
             const isSelected = selectedSeatIds.has(seatId)
+            const isSelectable = isSelected || (status === SeatStatus.Available && !isAtCap)
             return (
               <Seat
                 key={col}
                 seatId={seatId}
+                status={status}
                 isSelected={isSelected}
-                isSelectable={isSelected || !isAtCap}
+                isSelectable={isSelectable}
                 onToggle={onToggleSeat}
               />
             )

@@ -3,13 +3,16 @@
 
 export type SeatId = string
 
-// A real `enum` isn't erasable (tsconfig.app.json has erasableSyntaxOnly),
-// so this is the standard const-object replacement — SeatStatus.Available
-// works the same as an enum member, both as a value and as a type.
-export const SeatStatus = {
-  Available: 'available',
-  Held: 'held',
-  Booked: 'booked',
-} as const
+export enum SeatStatus {
+  Available = 'available',
+  Held = 'held',
+  Booked = 'booked',
+}
 
-export type SeatStatus = (typeof SeatStatus)[keyof typeof SeatStatus]
+export interface SeatSnapshot {
+  status: SeatStatus
+  expiresAt: number | null
+  softExpiresAt: number | null
+}
+
+export type SeatsSnapshot = Record<SeatId, SeatSnapshot>
