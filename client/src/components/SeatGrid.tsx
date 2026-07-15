@@ -1,26 +1,49 @@
-import { COLS, MAX_SEATS_PER_BOOKING, ROWS, buildSeatId } from '@/constants/seat.constants'
-import { Seat } from '@/components/Seat'
-import { useSeatSocket } from '@/state/useSeatSocket'
-import { SeatStatus, type SeatId } from '@/types/seat'
-
-interface SeatGridProps {
-  selectedSeatIds: Set<SeatId>
-  onToggleSeat: (seatId: SeatId) => void
-}
+import { useMemo } from "react";
+import {
+  COLS,
+  MAX_SEATS_PER_BOOKING,
+  ROWS,
+  buildSeatId,
+} from "@/constants/seat.constants";
+import { ErrorMessages } from "@/constants/messages.constants";
+import { Seat } from "@/components/Seat";
+import { useSeatSocket } from "@/state/useSeatSocket";
+import { SeatStatus } from "@/types/seat";
 
 /**
- * @description Renders the 10x10 seat grid, combining real seat status from the socket context
- * with the caller's local selection state to decide each seat's selectability.
+ * @description Renders the seat grid, combining real seat status, this client's own
+ * hold-in-progress state, and its local selection — all read directly from the socket
+ * context — to decide each seat's visual state, whether it's toggleable, and its
+ * blocked-reason tooltip.
  */
-export const SeatGrid = ({ selectedSeatIds, onToggleSeat }: SeatGridProps) => {
-  const { seats } = useSeatSocket()
-  const isAtCap = selectedSeatIds.size >= MAX_SEATS_PER_BOOKING
+export const SeatGrid = () => {
+  const {
+    seats,
+    selectedSeatIds,
+    activeHold,
+    isHoldPending,
+    isConnected,
+    toggleSeat,
+  } = useSeatSocket();
+  const isAtCap = selectedSeatIds.size >= MAX_SEATS_PER_BOOKING;
+
+  // Blocks new selection for the entire hold->confirm transaction, not just the
+  // in-flight request — a confirmed hold still occupies the one allowed slot
+  // until it's booked (or fails/expires), matching the backend's own contract.
+  const isMidTransaction = isHoldPending || activeHold !== null;
+  const myHeldSeatIds = useMemo(
+    () => new Set(activeHold?.seatIds ?? []),
+    [activeHold],
+  );
 
   return (
     <div className="inline-flex flex-col gap-1.5 rounded-xl border bg-card p-4">
       <div className="flex gap-1.5 pl-9">
         {COLS.map((col) => (
-          <div key={col} className="flex size-9 items-center justify-center text-xs text-muted-foreground">
+          <div
+            key={col}
+            className="flex size-9 items-center justify-center text-xs text-muted-foreground"
+          >
             {col}
           </div>
         ))}
@@ -31,23 +54,46 @@ export const SeatGrid = ({ selectedSeatIds, onToggleSeat }: SeatGridProps) => {
             {row}
           </div>
           {COLS.map((col) => {
-            const seatId = buildSeatId(row, col)
-            const status = seats[seatId]?.status ?? SeatStatus.Available
-            const isSelected = selectedSeatIds.has(seatId)
-            const isSelectable = isSelected || (status === SeatStatus.Available && !isAtCap)
+            const seatId = buildSeatId(row, col);
+            const status = seats[seatId]?.status ?? SeatStatus.Available;
+            const isMine = myHeldSeatIds.has(seatId);
+            const isSelected = selectedSeatIds.has(seatId);
+            const isToggleable =
+              isConnected &&
+              !isMine &&
+              !isMidTransaction &&
+              (isSelected || (status === SeatStatus.Available && !isAtCap));
+
+            let seatUnavailabilityReason: string | null = null;
+            if (!isToggleable && !isMine) {
+              if (!isConnected) {
+                seatUnavailabilityReason = ErrorMessages.ConnectionLost;
+              } else if (status !== SeatStatus.Available) {
+                seatUnavailabilityReason = ErrorMessages.SeatUnavailable;
+              } else if (isMidTransaction) {
+                seatUnavailabilityReason =
+                  ErrorMessages.HoldTransactionInProgress;
+              } else {
+                seatUnavailabilityReason =
+                  ErrorMessages.SeatSelectionLimitReached;
+              }
+            }
+
             return (
               <Seat
                 key={col}
                 seatId={seatId}
-                status={status}
+                isMine={isMine}
                 isSelected={isSelected}
-                isSelectable={isSelectable}
-                onToggle={onToggleSeat}
+                isToggleable={isToggleable}
+                isExpiringSoon={isMine && (activeHold?.isExpiringSoon ?? false)}
+                seatUnavailabilityReason={seatUnavailabilityReason}
+                onToggle={toggleSeat}
               />
-            )
+            );
           })}
         </div>
       ))}
     </div>
-  )
-}
+  );
+};

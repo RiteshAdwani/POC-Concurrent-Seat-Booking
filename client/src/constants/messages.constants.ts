@@ -6,5 +6,7 @@ import { MAX_SEATS_PER_BOOKING } from '@/constants/seat.constants'
 export const ErrorMessages = {
   SeatUnavailable: 'This seat is already held or booked',
   SeatSelectionLimitReached: `Max ${MAX_SEATS_PER_BOOKING} seats per booking`,
+  HoldTransactionInProgress: 'Finish confirming or release your current hold before selecting more seats',
   MissingSeatSocketProvider: 'useSeatSocket must be used within a SeatSocketProvider',
+  ConnectionLost: 'Reconnecting to the server…',
 } as const
