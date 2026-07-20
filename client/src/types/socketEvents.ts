@@ -6,6 +6,7 @@ import type { SeatId, SeatStatus, SeatsSnapshot } from '@/types/seat'
 export enum ClientEvent {
   SeatHold = 'seat:hold',
   SeatConfirm = 'seat:confirm',
+  SeatRelease = 'seat:release',
 }
 
 export enum ServerEvent {
@@ -14,6 +15,8 @@ export enum ServerEvent {
   SeatHoldExpiringSoon = 'seat:hold:expiring-soon',
   SeatConfirmSuccess = 'seat:confirm:success',
   SeatConfirmFailed = 'seat:confirm:failed',
+  SeatReleaseSuccess = 'seat:release:success',
+  SeatReleaseFailed = 'seat:release:failed',
   SeatsStateChanged = 'seats:state:changed',
   SeatFullSync = 'seat:full:sync',
   PresenceUpdate = 'presence:update',
@@ -34,6 +37,8 @@ export type SeatHoldRejectedEvent = SeatEventBase
 export type SeatHoldExpiringSoonEvent = SeatEventBase
 export type SeatConfirmSuccessEvent = SeatEventBase
 export type SeatConfirmFailedEvent = SeatEventBase
+export type SeatReleaseSuccessEvent = SeatEventBase
+export type SeatReleaseFailedEvent = SeatEventBase
 
 export interface SeatsStateChangedEvent {
   seats: Array<{ seatId: SeatId; status: SeatStatus }>
@@ -46,6 +51,7 @@ export interface PresenceEvent {
 export type ClientToServerEvents = {
   [ClientEvent.SeatHold]: (payload: { seatIds: string[] }) => void
   [ClientEvent.SeatConfirm]: (payload: { seatIds: string[] }) => void
+  [ClientEvent.SeatRelease]: (payload: { seatIds: string[] }) => void
 }
 
 export type ServerToClientEvents = {
@@ -54,6 +60,8 @@ export type ServerToClientEvents = {
   [ServerEvent.SeatHoldExpiringSoon]: (event: SeatHoldExpiringSoonEvent) => void
   [ServerEvent.SeatConfirmSuccess]: (event: SeatConfirmSuccessEvent) => void
   [ServerEvent.SeatConfirmFailed]: (event: SeatConfirmFailedEvent) => void
+  [ServerEvent.SeatReleaseSuccess]: (event: SeatReleaseSuccessEvent) => void
+  [ServerEvent.SeatReleaseFailed]: (event: SeatReleaseFailedEvent) => void
   [ServerEvent.SeatsStateChanged]: (event: SeatsStateChangedEvent) => void
   [ServerEvent.SeatFullSync]: (snapshot: SeatsSnapshot) => void
   [ServerEvent.PresenceUpdate]: (event: PresenceEvent) => void

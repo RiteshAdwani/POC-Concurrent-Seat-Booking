@@ -6,6 +6,7 @@ export interface SeatSocketContextValue extends SeatSocketState {
   toggleSeat: (seatId: SeatId) => void
   holdSeats: (seatIds: SeatId[]) => void
   confirmBooking: (seatIds: SeatId[]) => void
+  releaseHeldSeats: (seatIds: SeatId[]) => void
 }
 
 

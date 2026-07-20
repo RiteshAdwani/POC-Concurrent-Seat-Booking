@@ -162,6 +162,34 @@ export class SeatStore {
   }
 
   /**
+   * @description Voluntarily releases all seats in the given batch back to Available for the
+   * given socket, cancelling its timers early. Validates that every seat is still held by this
+   * socket before releasing any — same all-or-nothing shape as confirmBookings, just resetting
+   * to Available instead of Booked. Assumes seatIds is one whole batch, not a partial slice of it.
+   */
+  releaseHeldSeats(seatIds: SeatId[], socketId: string): BookingsConfirmResult {
+    // Validate ALL seats before releasing any
+    for (const seatId of seatIds) {
+      const seat = this.seats.get(seatId);
+      if (!seat) return { ok: false, reason: Messages.SeatNotFound };
+      if (seat.status !== SeatStatus.Held) return { ok: false, reason: Messages.SeatNotHeld };
+      if (seat.heldBy !== socketId) return { ok: false, reason: Messages.SeatNotYourHold };
+    }
+
+    const { batchId } = this.seats.get(seatIds[0])!;
+    if (batchId) {
+      this.batches.get(batchId)?.cancel();
+      this.batches.delete(batchId);
+    }
+
+    for (const seatId of seatIds) {
+      this.seats.set(seatId, buildEmptyRecord());
+    }
+
+    return { ok: true };
+  }
+
+  /**
    * @description Releases every seat currently held by the given socket and returns their IDs.
    * Intended to be called on socket disconnect so abandoned holds are freed immediately.
    * Cancels any pending batch timers to prevent ghost expiry callbacks after release.

@@ -10,6 +10,7 @@ export enum SeatStatus {
 export enum ClientEvent {
   SeatHold    = 'seat:hold',
   SeatConfirm = 'seat:confirm',
+  SeatRelease = 'seat:release',
 }
 
 // Events the server emits to clients
@@ -19,6 +20,8 @@ export enum ServerEvent {
   SeatHoldExpiringSoon = 'seat:hold:expiring-soon',
   SeatConfirmSuccess   = 'seat:confirm:success',
   SeatConfirmFailed    = 'seat:confirm:failed',
+  SeatReleaseSuccess   = 'seat:release:success',
+  SeatReleaseFailed    = 'seat:release:failed',
   SeatsStateChanged    = 'seats:state:changed',
   SeatFullSync         = 'seat:full:sync',
   PresenceUpdate       = 'presence:update',
@@ -63,6 +66,7 @@ export type GetSeatsResponse = SeatsSnapshot;
 export type ClientToServerEvents = {
   [ClientEvent.SeatHold]:    (payload: { seatIds: string[] }) => void;
   [ClientEvent.SeatConfirm]: (payload: { seatIds: string[] }) => void;
+  [ClientEvent.SeatRelease]: (payload: { seatIds: string[] }) => void;
 };
 
 // What the server emits to clients
@@ -81,6 +85,12 @@ export type ServerToClientEvents = {
 
   // Sent to the requesting client only — booking failed, hold is still active
   [ServerEvent.SeatConfirmFailed]:    (event: SeatConfirmFailedEvent) => void;
+
+  // Sent to the requesting client only — hold released successfully
+  [ServerEvent.SeatReleaseSuccess]:   (event: SeatReleaseSuccessEvent) => void;
+
+  // Sent to the requesting client only — release failed (not held / not yours / already gone)
+  [ServerEvent.SeatReleaseFailed]:    (event: SeatReleaseFailedEvent) => void;
 
   // Broadcast to ALL clients — one or more seats changed state
   [ServerEvent.SeatsStateChanged]:    (event: SeatsStateChangedEvent) => void;
@@ -111,6 +121,8 @@ export type SeatHoldRejectedEvent     = SeatEvent;
 export type SeatHoldExpiringSoonEvent = SeatEvent;
 export type SeatConfirmSuccessEvent   = SeatEvent;
 export type SeatConfirmFailedEvent    = SeatEvent;
+export type SeatReleaseSuccessEvent   = SeatEvent;
+export type SeatReleaseFailedEvent    = SeatEvent;
 
 export interface SeatsStateChangedEvent {
   seats: Array<{ seatId: SeatId; status: SeatStatus }>;

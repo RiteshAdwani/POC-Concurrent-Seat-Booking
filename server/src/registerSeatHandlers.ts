@@ -14,9 +14,10 @@ type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 type TypedSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
 
 /**
- * @description Registers seat:hold and seat:confirm Socket.IO handlers for a single connected socket.
- * Each handler validates the payload with Zod, delegates to the store, and emits the appropriate
- * success or failure event back to the requesting client. State-change broadcasts go to all clients.
+ * @description Registers seat:hold, seat:confirm, and seat:release Socket.IO handlers for a single
+ * connected socket. Each handler validates the payload with Zod, delegates to the store, and emits
+ * the appropriate success or failure event back to the requesting client. State-change broadcasts
+ * go to all clients.
  */
 export function registerSeatHandlers(io: TypedServer, socket: TypedSocket): void {
   socket.on(ClientEvent.SeatHold, (payload: unknown) => {
@@ -93,6 +94,36 @@ export function registerSeatHandlers(io: TypedServer, socket: TypedSocket): void
 
     io.emit(ServerEvent.SeatsStateChanged, {
       seats: seatIds.map((id) => ({ seatId: id, status: SeatStatus.Booked })),
+    });
+  });
+
+  socket.on(ClientEvent.SeatRelease, (payload: unknown) => {
+    const parsed = SeatIdsPayloadSchema.safeParse(payload);
+
+    if (!parsed.success) {
+      socket.emit(ServerEvent.SeatReleaseFailed, {
+        seatIds: [],
+        message: parsed.error.issues[0]?.message ?? Messages.InvalidPayload,
+      });
+      return;
+    }
+
+    const { seatIds } = parsed.data;
+
+    const result = store.releaseHeldSeats(seatIds, socket.id);
+
+    if (!result.ok) {
+      socket.emit(ServerEvent.SeatReleaseFailed, { seatIds, message: result.reason });
+      return;
+    }
+
+    socket.emit(ServerEvent.SeatReleaseSuccess, {
+      seatIds,
+      message: Messages.SeatReleased,
+    });
+
+    io.emit(ServerEvent.SeatsStateChanged, {
+      seats: seatIds.map((id) => ({ seatId: id, status: SeatStatus.Available })),
     });
   });
 }
