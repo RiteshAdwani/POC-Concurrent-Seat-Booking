@@ -18,6 +18,7 @@ export interface SeatSocketState {
   activeHold: HoldBatch | null
   isHoldPending: boolean
   isConfirmPending: boolean
+  isReleasePending: boolean
   isConnected: boolean
   presenceCount: number
 }
@@ -28,6 +29,7 @@ export const initialSeatSocketState: SeatSocketState = {
   activeHold: null,
   isHoldPending: false,
   isConfirmPending: false,
+  isReleasePending: false,
   isConnected: false,
   presenceCount: 0,
 }
@@ -43,6 +45,9 @@ export enum SeatSocketActionType {
   ConfirmRequested = 'CONFIRM_REQUESTED',
   ConfirmSucceeded = 'CONFIRM_SUCCEEDED',
   ConfirmFailed = 'CONFIRM_FAILED',
+  ReleaseRequested = 'RELEASE_REQUESTED',
+  ReleaseSucceeded = 'RELEASE_SUCCEEDED',
+  ReleaseFailed = 'RELEASE_FAILED',
   Connected = 'CONNECTED',
   Disconnected = 'DISCONNECTED',
   ActiveUsersCountUpdated = 'ACTIVE_USERS_COUNT_UPDATED',
@@ -59,6 +64,9 @@ export type SeatSocketAction =
   | { type: SeatSocketActionType.ConfirmRequested }
   | { type: SeatSocketActionType.ConfirmSucceeded }
   | { type: SeatSocketActionType.ConfirmFailed }
+  | { type: SeatSocketActionType.ReleaseRequested }
+  | { type: SeatSocketActionType.ReleaseSucceeded }
+  | { type: SeatSocketActionType.ReleaseFailed }
   | { type: SeatSocketActionType.Connected }
   | { type: SeatSocketActionType.Disconnected }
   | { type: SeatSocketActionType.ActiveUsersCountUpdated; count: number }
@@ -66,13 +74,16 @@ export type SeatSocketAction =
 /**
  * @description Pure reducer for all seat-related state. Handles: replacing the full
  * seat list on (re)connect, applying incremental updates from the server, tracking
- * local seat selection, and moving a hold through to a confirmed booking.
+ * local seat selection, and moving a hold through to either a confirmed booking or
+ * a voluntary release.
  *
  * selectedSeatIds and activeHold only get cleared once the transaction truly ends —
- * either the booking succeeds, or we notice (via StateChanged) that the held seats
- * were released without ever being confirmed, which is how an expired hold is caught,
- * since expiry has no event of its own. A failed confirm leaves the hold active,
- * matching what the backend does.
+ * the booking succeeds, the user voluntarily releases the hold, or we notice (via
+ * StateChanged) that the held seats were released without ever being confirmed, which
+ * is how an expired hold is caught, since expiry has no event of its own. A failed
+ * confirm leaves the hold active, matching what the backend does. A successful release
+ * clears selectedSeatIds too (unlike a successful confirm) — voluntarily leaving the
+ * checkout page means starting over, not continuing to edit the same picks.
  */
 export const seatSocketReducer = (
   state: SeatSocketState,
@@ -89,6 +100,7 @@ export const seatSocketReducer = (
         activeHold: null,
         isHoldPending: false,
         isConfirmPending: false,
+        isReleasePending: false,
       }
 
     case SeatSocketActionType.StateChanged: {
@@ -119,6 +131,7 @@ export const seatSocketReducer = (
           selectedSeatIds: new Set(),
           activeHold: null,
           isConfirmPending: false,
+          isReleasePending: false,
         }
       }
 
@@ -182,6 +195,25 @@ export const seatSocketReducer = (
       // Keep the hold active. The backend doesn't release seats just
       // because a confirm attempt failed.
       return { ...state, isConfirmPending: false }
+
+    case SeatSocketActionType.ReleaseRequested:
+      return { ...state, isReleasePending: true }
+
+    case SeatSocketActionType.ReleaseSucceeded:
+      // Full reset, matching BookMyShow-style "cancel wipes the slate" — unlike
+      // ConfirmSucceeded's sibling above, this clears selectedSeatIds too, since
+      // leaving the checkout page voluntarily means starting over, not editing.
+      return {
+        ...state,
+        isReleasePending: false,
+        activeHold: null,
+        selectedSeatIds: new Set(),
+      }
+
+    case SeatSocketActionType.ReleaseFailed:
+      // If this failed because the hold already hard-expired, the StateChanged
+      // reconciliation above will have already cleared activeHold independently.
+      return { ...state, isReleasePending: false }
 
     case SeatSocketActionType.Connected:
       // The socket is up. seat:full:sync (handled separately) is what

@@ -10,6 +10,8 @@ import {
   type SeatHoldConfirmedEvent,
   type SeatHoldExpiringSoonEvent,
   type SeatHoldRejectedEvent,
+  type SeatReleaseFailedEvent,
+  type SeatReleaseSuccessEvent,
   type SeatsStateChangedEvent,
 } from "@/types/socketEvents";
 import type { SeatId, SeatsSnapshot } from "@/types/seat";
@@ -23,9 +25,10 @@ import { SeatSocketContext, type SeatSocketContextValue } from "@/state/seatSock
 /**
  * @description Owns the seat-state reducer and subscribes to seat:full:sync / seats:state:changed /
  * seat:hold:confirmed / seat:hold:rejected / seat:hold:expiring-soon / seat:confirm:success /
- * seat:confirm:failed / presence:update / connect / disconnect for the lifetime of the app,
- * exposing the resulting state plus toggleSeat()/holdSeats()/confirmBooking() actions to
- * descendants via SeatSocketContext.
+ * seat:confirm:failed / seat:release:success / seat:release:failed / presence:update / connect /
+ * disconnect for the lifetime of the app, exposing the resulting state plus
+ * toggleSeat()/holdSeats()/confirmBooking()/releaseHeldSeats() actions to descendants via
+ * SeatSocketContext.
  */
 export const SeatSocketProvider = ({ children }: { children: ReactNode }) => {
   const [state, dispatch] = useReducer(
@@ -103,6 +106,27 @@ export const SeatSocketProvider = ({ children }: { children: ReactNode }) => {
     };
 
     /**
+     * @description Ends the transaction on this client — the hold was voluntarily
+     * released, so both it and the selection that led to it are done being tracked
+     * locally. The seats themselves flip back to Available via the accompanying
+     * seats:state:changed broadcast, not here.
+     */
+    const handleReleaseSuccess = (event: SeatReleaseSuccessEvent) => {
+      dispatch({ type: SeatSocketActionType.ReleaseSucceeded });
+      toast.success(event.message);
+    };
+
+    /**
+     * @description Clears the pending flag and surfaces an error toast. If this failed
+     * because the hold already hard-expired, StateChanged's own reconciliation will
+     * have already cleared activeHold independently.
+     */
+    const handleReleaseFailed = (event: SeatReleaseFailedEvent) => {
+      dispatch({ type: SeatSocketActionType.ReleaseFailed });
+      toast.error(event.message);
+    };
+
+    /**
      * @description Flags the socket as connected. seat:full:sync (handled separately)
      * is what actually repopulates seat/hold state — this only drives the UI's
      * connected/disconnected indicator and interaction gate.
@@ -133,6 +157,8 @@ export const SeatSocketProvider = ({ children }: { children: ReactNode }) => {
     socket.on(ServerEvent.SeatHoldExpiringSoon, handleHoldExpiringSoon);
     socket.on(ServerEvent.SeatConfirmSuccess, handleConfirmSuccess);
     socket.on(ServerEvent.SeatConfirmFailed, handleConfirmFailed);
+    socket.on(ServerEvent.SeatReleaseSuccess, handleReleaseSuccess);
+    socket.on(ServerEvent.SeatReleaseFailed, handleReleaseFailed);
     socket.on(ServerEvent.PresenceUpdate, handlePresenceUpdate);
     socket.on("connect", handleConnect);
     socket.on("disconnect", handleDisconnect);
@@ -145,6 +171,8 @@ export const SeatSocketProvider = ({ children }: { children: ReactNode }) => {
       socket.off(ServerEvent.SeatHoldExpiringSoon, handleHoldExpiringSoon);
       socket.off(ServerEvent.SeatConfirmSuccess, handleConfirmSuccess);
       socket.off(ServerEvent.SeatConfirmFailed, handleConfirmFailed);
+      socket.off(ServerEvent.SeatReleaseSuccess, handleReleaseSuccess);
+      socket.off(ServerEvent.SeatReleaseFailed, handleReleaseFailed);
       socket.off(ServerEvent.PresenceUpdate, handlePresenceUpdate);
       socket.off("connect", handleConnect);
       socket.off("disconnect", handleDisconnect);
@@ -177,9 +205,18 @@ export const SeatSocketProvider = ({ children }: { children: ReactNode }) => {
     socket.emit(ClientEvent.SeatConfirm, { seatIds });
   }, []);
 
+  /**
+   * @description Emits seat:release for the given seatIds and marks the request as pending
+   * until the server responds with seat:release:success or seat:release:failed.
+   */
+  const releaseHeldSeats = useCallback((seatIds: SeatId[]) => {
+    dispatch({ type: SeatSocketActionType.ReleaseRequested });
+    socket.emit(ClientEvent.SeatRelease, { seatIds });
+  }, []);
+
   const contextValue: SeatSocketContextValue = useMemo(
-    () => ({ ...state, toggleSeat, holdSeats, confirmBooking }),
-    [state, toggleSeat, holdSeats, confirmBooking],
+    () => ({ ...state, toggleSeat, holdSeats, confirmBooking, releaseHeldSeats }),
+    [state, toggleSeat, holdSeats, confirmBooking, releaseHeldSeats],
   );
 
   return (
