@@ -5,8 +5,8 @@ import { navigationRoutes } from '@/constants/navigationRoutes.constants'
 import { useSeatSocket } from '@/state/useSeatSocket'
 
 /**
- * @description Shared layout for every route. Keeps the URL and activeHold in sync, and
- * guards against leaving /checkout while a hold is still active.
+ * @description Shared layout for every route: syncs the URL with activeHold and guards
+ * against leaving /checkout mid-hold.
  */
 export const AppLayout = () => {
   const { activeHold, releaseHeldSeats } = useSeatSocket()
@@ -14,10 +14,24 @@ export const AppLayout = () => {
   const location = useLocation()
 
   /**
-   * @description Forces the URL to always match activeHold: forwards to /checkout the
-   * instant a hold exists, and back to /seats the instant it doesn't (release,
-   * hard-expiry, or a successful confirm) — including self-healing a direct/refreshed
-   * visit to /checkout with no active hold.
+   * @description Blocks navigation away from /checkout while a hold is active —
+   * including the browser's back/forward buttons. LeaveCheckoutDialog below confirms:
+   * accepting releases the hold and proceeds, cancelling resets it.
+   *
+   * Must be declared before the sync effect below — its own useEffect re-registers this
+   * predicate with the router, and effects run in hook order. If the sync effect ran
+   * first, its navigate() right after a confirm would still see last render's (stale,
+   * non-null) activeHold and wrongly trigger the block.
+   */
+  const blocker = useBlocker(
+    ({ currentLocation }) =>
+      currentLocation.pathname === navigationRoutes.Checkout && activeHold !== null,
+  )
+
+  /**
+   * @description Keeps the URL in sync with activeHold: forwards to /checkout once a
+   * hold exists, back to /seats once it doesn't (release, expiry, or confirm) —
+   * also self-heals a stray direct visit to /checkout with no active hold.
    */
   useEffect(() => {
     if (activeHold && location.pathname !== navigationRoutes.Checkout) {
@@ -27,17 +41,6 @@ export const AppLayout = () => {
       navigate(navigationRoutes.Seats)
     }
   }, [activeHold, location.pathname, navigate])
-
-  /**
-   * @description Pauses any navigation away from /checkout while a hold is active —
-   * including the browser's real back/forward buttons, since data-router blockers cover
-   * POP navigations, not just navigate() calls. Paired with LeaveCheckoutDialog below:
-   * confirming releases the hold and lets the navigation proceed, cancelling resets it.
-   */
-  const blocker = useBlocker(
-    ({ currentLocation }) =>
-      currentLocation.pathname === navigationRoutes.Checkout && activeHold !== null,
-  )
 
   /**
    * @description Releases the held seats and lets the blocked navigation proceed.

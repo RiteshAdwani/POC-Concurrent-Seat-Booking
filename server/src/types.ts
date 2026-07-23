@@ -60,6 +60,25 @@ export type SeatsSnapshot = Record<SeatId, SeatSnapshot>;
 // GET /api/seats response
 export type GetSeatsResponse = SeatsSnapshot;
 
+// One row's worth of pre-built seat IDs — the client never constructs a SeatId
+// itself, it only ever receives ones the server already built.
+export interface SeatRow {
+  label: string;
+  seatIds: SeatId[];
+}
+
+// Static seat map shape — rows (with their seat IDs), columns (for header labels),
+// and the per-booking cap. Never changes at runtime, unlike SeatsSnapshot which
+// reflects live per-seat status.
+export interface SeatLayout {
+  rows: SeatRow[];
+  cols: number[];
+  maxSeatsPerBooking: number;
+}
+
+// GET /api/layout response
+export type GetLayoutResponse = SeatLayout;
+
 // ─── Socket Types ─────────────────────────────────────────────────────────────
 
 // What the client emits to the server — raw strings before server validation
