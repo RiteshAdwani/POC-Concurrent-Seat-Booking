@@ -1,4 +1,3 @@
-import { MAX_SEATS_PER_BOOKING } from '@/constants/seat.constants'
 import { SeatStatus, type SeatId, type SeatsSnapshot } from '@/types/seat'
 
 export interface HoldBatch {
@@ -56,7 +55,7 @@ export enum SeatSocketActionType {
 export type SeatSocketAction =
   | { type: SeatSocketActionType.FullSync; snapshot: SeatsSnapshot }
   | { type: SeatSocketActionType.StateChanged; seats: Array<{ seatId: SeatId; status: SeatStatus }> }
-  | { type: SeatSocketActionType.SeatToggled; seatId: SeatId }
+  | { type: SeatSocketActionType.SeatToggled; seatId: SeatId; maxSeatsPerBooking: number }
   | { type: SeatSocketActionType.HoldRequested }
   | { type: SeatSocketActionType.HoldConfirmed; hold: Omit<HoldBatch, 'isExpiringSoon'> }
   | { type: SeatSocketActionType.HoldRejected }
@@ -140,11 +139,13 @@ export const seatSocketReducer = (
 
     case SeatSocketActionType.SeatToggled: {
       // Adds or removes a seat from the local selection. New additions are
-      // capped at MAX_SEATS_PER_BOOKING; removing is always allowed.
+      // capped at maxSeatsPerBooking (a runtime value from the backend layout,
+      // threaded through the action since a pure reducer can't reach context);
+      // removing is always allowed.
       const selectedSeatIds = new Set(state.selectedSeatIds)
       if (selectedSeatIds.has(action.seatId)) {
         selectedSeatIds.delete(action.seatId)
-      } else if (selectedSeatIds.size < MAX_SEATS_PER_BOOKING) {
+      } else if (selectedSeatIds.size < action.maxSeatsPerBooking) {
         selectedSeatIds.add(action.seatId)
       }
       return { ...state, selectedSeatIds }

@@ -183,8 +183,8 @@ export const SeatSocketProvider = ({ children }: { children: ReactNode }) => {
    * @description Toggles a seat in/out of local selection, enforcing the
    * max-seats-per-booking cap on new additions (deselecting is always allowed).
    */
-  const toggleSeat = useCallback((seatId: SeatId) => {
-    dispatch({ type: SeatSocketActionType.SeatToggled, seatId });
+  const toggleSeat = useCallback((seatId: SeatId, maxSeatsPerBooking: number) => {
+    dispatch({ type: SeatSocketActionType.SeatToggled, seatId, maxSeatsPerBooking });
   }, []);
 
   /**

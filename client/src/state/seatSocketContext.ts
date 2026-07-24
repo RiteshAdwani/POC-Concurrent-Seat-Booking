@@ -3,7 +3,7 @@ import type { SeatSocketState } from '@/state/seatReducer'
 import type { SeatId } from '@/types/seat'
 
 export interface SeatSocketContextValue extends SeatSocketState {
-  toggleSeat: (seatId: SeatId) => void
+  toggleSeat: (seatId: SeatId, maxSeatsPerBooking: number) => void
   holdSeats: (seatIds: SeatId[]) => void
   confirmBooking: (seatIds: SeatId[]) => void
   releaseHeldSeats: (seatIds: SeatId[]) => void

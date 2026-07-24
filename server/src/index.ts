@@ -11,7 +11,7 @@ import {
   ClientToServerEvents,
   ServerToClientEvents,
 } from "./types";
-import { apiRoute } from "./constants";
+import { apiRoute, SEAT_LAYOUT } from "./constants";
 
 const PORT = process.env.PORT ?? 3001;
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN ?? "http://localhost:5173";
@@ -30,6 +30,10 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
 
 app.get(apiRoute.seats, (_req, res) => {
   res.status(StatusCodes.OK).json(store.getSnapshot());
+});
+
+app.get(apiRoute.layout, (_req, res) => {
+  res.status(StatusCodes.OK).json(SEAT_LAYOUT);
 });
 
 app.get(apiRoute.health, (_req, res) => {

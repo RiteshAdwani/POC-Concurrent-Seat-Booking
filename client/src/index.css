@@ -128,3 +128,31 @@
     @apply font-sans;
     }
 }
+
+/*
+ * Seat visual states — see Seat.tsx's cn() call for which one applies.
+ * Deliberately NOT in @layer components: per the CSS cascade-layers spec, any
+ * layered rule (including Tailwind's own @layer utilities) always beats an
+ * unlayered one regardless of specificity. The shadcn Button "ghost" variant's
+ * own hover:bg-muted utility lives in @layer utilities, so a same-specificity
+ * .seat-*:hover rule in @layer components would always lose to it on hover —
+ * unlayered rules here always win instead.
+ */
+.seat-available {
+  @apply border-zinc-300 bg-white text-zinc-400 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-500;
+}
+.seat-selected {
+  @apply border-indigo-400 bg-indigo-500 text-white hover:bg-indigo-500;
+}
+.seat-mine {
+  @apply border-violet-500 bg-violet-600 text-white hover:bg-violet-600;
+}
+.seat-mine-expiring {
+  @apply border-amber-400 bg-amber-500 text-white hover:bg-amber-500;
+}
+.seat-held-other {
+  @apply border-slate-400 bg-slate-400 text-white;
+}
+.seat-booked {
+  @apply border-rose-500 bg-rose-500 text-white;
+}

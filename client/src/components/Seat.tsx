@@ -1,3 +1,5 @@
+import { Armchair } from "lucide-react";
+import { memo } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -5,10 +7,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import type { SeatId } from "@/types/seat";
+import { SeatStatus, type SeatId } from "@/types/seat";
 
 interface SeatProps {
   seatId: SeatId;
+  status: SeatStatus;
   isMine: boolean;
   isSelected: boolean;
   isToggleable: boolean;
@@ -18,25 +21,25 @@ interface SeatProps {
 }
 
 /**
- * @description Renders a single seat button, deriving its visual state
- * (default/selected/held-mine/dimmed) from whether this client holds it, is
- * selecting it, and whether it's currently toggleable. seatUnavailabilityReason
- * (if any) is computed by the caller, which has the full context to explain it,
- * and is only shown as a tooltip here.
+ * @description Renders one seat glyph, colored by state: available, selected, mine
+ * (+ expiring-soon), held by someone else, or booked. seatUnavailabilityReason is
+ * computed by the caller and just shown here as a tooltip.
+ *
+ * Memoized so unrelated context changes (e.g. a presence-count tick) don't re-render
+ * all ~100 seats — safe since every prop here is a primitive or a stable callback.
  */
-export const Seat = ({
+export const Seat = memo(function Seat({
   seatId,
+  status,
   isMine,
   isSelected,
   isToggleable,
   isExpiringSoon,
   seatUnavailabilityReason,
   onToggle,
-}: SeatProps) => {
+}: SeatProps) {
   /**
-   * @description No-ops when the seat isn't toggleable (cap reached, held-mine,
-   * mid-transaction, or already held/booked by someone else); otherwise reports
-   * the click up to the parent's toggle handler.
+   * @description No-ops if the seat isn't toggleable; otherwise reports the click up.
    */
   const handleSeatButtonClick = () => {
     if (isToggleable) {
@@ -44,30 +47,31 @@ export const Seat = ({
     }
   };
 
-  const buttonVariant = isSelected ? "default" : "outline";
-
-  // Held-mine seats aren't selectable either, but they shouldn't look "dimmed
-  // and unavailable" like a stranger's held/booked seat — it's an active state,
-  // called out with a bold, unmistakable color rather than a subtle variant swap.
-  const isDimmed = !isToggleable && !isMine;
+  // Only dim available-but-blocked seats (at cap, mid-transaction, disconnected) —
+  // held-by-other/booked already have their own unmistakable color (see index.css's
+  // .seat-* classes below; isMine never actually renders here in practice, since
+  // holding navigates straight to /checkout, but is kept for correctness).
+  const isDimmed = !isToggleable && !isMine && status === SeatStatus.Available;
 
   const button = (
     <Button
-      variant={buttonVariant}
+      variant="ghost"
       size="sm"
       aria-disabled={!isToggleable}
+      aria-label={seatId}
       className={cn(
-        "size-9 p-0 text-xs",
-        isMine &&
-          "border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-600",
-        isMine &&
-          isExpiringSoon &&
-          "border-amber-500 bg-amber-500 hover:bg-amber-500",
-        isDimmed && "opacity-40",
+        "size-9 rounded-t-lg rounded-b-sm border p-0",
+        isMine && isExpiringSoon && "seat-mine-expiring",
+        isMine && !isExpiringSoon && "seat-mine",
+        !isMine && isSelected && "seat-selected",
+        !isMine && !isSelected && status === SeatStatus.Booked && "seat-booked",
+        !isMine && !isSelected && status === SeatStatus.Held && "seat-held-other",
+        !isMine && !isSelected && status === SeatStatus.Available && "seat-available",
+        isDimmed && "cursor-not-allowed opacity-60",
       )}
       onClick={handleSeatButtonClick}
     >
-      {seatId}
+      <Armchair className="size-4" />
     </Button>
   );
 
@@ -82,4 +86,4 @@ export const Seat = ({
       <TooltipContent>{seatUnavailabilityReason}</TooltipContent>
     </Tooltip>
   );
-};
+});
