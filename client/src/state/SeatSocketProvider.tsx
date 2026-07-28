@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, type ReactNode } from "react";
 import { toast } from "sonner";
 import { socket } from "@/socket/socket";
 import {
@@ -15,6 +15,7 @@ import {
   type SeatsStateChangedEvent,
 } from "@/types/socketEvents";
 import type { SeatId, SeatsSnapshot } from "@/types/seat";
+import { ConnectionMessages } from "@/constants/messages.constants";
 import {
   initialSeatSocketState,
   seatSocketReducer,
@@ -36,13 +37,33 @@ export const SeatSocketProvider = ({ children }: { children: ReactNode }) => {
     initialSeatSocketState,
   );
 
+  // Lets handleFullSync (a stable closure registered once below) see the latest
+  // activeHold without re-subscribing on every state change.
+  const activeHoldRef = useRef(state.activeHold);
+  useEffect(() => {
+    activeHoldRef.current = state.activeHold;
+  }, [state.activeHold]);
+
   useEffect(() => {
     /**
      * @description Replaces the entire seats map with the fresh snapshot the server
-     * sends on every connect/reconnect.
+     * sends on every connect/reconnect. If we had a hold going into this sync, surfaces
+     * whether it survived — recovered means the server preserved it across the
+     * disconnect, otherwise it was released once the recovery window ran out.
      */
     const handleFullSync = (snapshot: SeatsSnapshot) => {
-      dispatch({ type: SeatSocketActionType.FullSync, snapshot });
+      const recovered = socket.recovered;
+      const hadActiveHold = activeHoldRef.current !== null;
+
+      dispatch({ type: SeatSocketActionType.FullSync, snapshot, recovered });
+
+      if (hadActiveHold) {
+        if (recovered) {
+          toast.success(ConnectionMessages.HoldRecovered);
+        } else {
+          toast.warning(ConnectionMessages.HoldNotRecovered);
+        }
+      }
     };
 
     /**
@@ -69,11 +90,13 @@ export const SeatSocketProvider = ({ children }: { children: ReactNode }) => {
     };
 
     /**
-     * @description Clears the pending flag and surfaces an error toast — nothing was
-     * ever held, so there's no local state to roll back.
+     * @description Clears the pending flag and surfaces an error toast. Only the
+     * seat(s) actually lost to a conflict get dropped from the local selection (the
+     * reducer checks each one against the live seats map) — the rest of the selection
+     * is preserved so the user can retry with what's still available.
      */
     const handleHoldRejected = (event: SeatHoldRejectedEvent) => {
-      dispatch({ type: SeatSocketActionType.HoldRejected });
+      dispatch({ type: SeatSocketActionType.HoldRejected, seatIds: event.seatIds });
       toast.error(event.message);
     };
 

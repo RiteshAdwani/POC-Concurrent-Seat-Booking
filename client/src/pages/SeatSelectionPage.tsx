@@ -1,44 +1,19 @@
-import { useEffect, useState } from 'react'
-import { fetchSeatLayout } from '@/api/layout'
 import { Header } from '@/components/Header'
 import { SeatGrid } from '@/components/SeatGrid'
 import { SeatLegend } from '@/components/SeatLegend'
 import { SelectionBar } from '@/components/SelectionBar'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import type { SeatLayout } from '@/types/seatLayout'
+import { useSeatLayout } from '@/state/useSeatLayout'
 
 /**
- * @description The /seats route: seat grid + selection controls. Fetches the
- * backend-driven seat layout once on mount (it's static config, unrelated to the live
- * socket state) and passes it down to SeatGrid/SelectionBar as a prop — both are direct
- * children, so a context here would be more machinery than the tree depth needs.
+ * @description The /seats route: seat grid + selection controls. Reads the
+ * backend-driven seat layout (fetched once by AppLayout, unrelated to the live socket
+ * state) via useSeatLayout() and passes it down to SeatGrid/SelectionBar as a prop —
+ * both are direct children, so threading it through their own context here would be
+ * more machinery than the tree depth needs.
  */
 export const SeatSelectionPage = () => {
-  const [layout, setLayout] = useState<SeatLayout | null>(null)
-  const [error, setError] = useState<unknown | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-
-    const loadLayout = async () => {
-      try {
-        const layout = await fetchSeatLayout()
-        if (!cancelled) {
-          setLayout(layout)
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setError(error)
-        }
-      }
-    }
-
-    loadLayout()
-
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  const { layout, error } = useSeatLayout()
 
   if (error) {
     return (
@@ -72,7 +47,7 @@ export const SeatSelectionPage = () => {
         <div className="flex flex-col items-center gap-4">
           <SeatGrid layout={layout} />
           <SeatLegend />
-          <SelectionBar maxSeatsPerBooking={layout.maxSeatsPerBooking} />
+          <SelectionBar layout={layout} />
         </div>
       </div>
     </TooltipProvider>

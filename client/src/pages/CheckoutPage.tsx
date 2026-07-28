@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { Armchair } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { ActiveHoldStatus } from '@/components/ActiveHoldStatus'
@@ -12,6 +13,8 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
+import { useSeatLayout } from '@/state/useSeatLayout'
+import { buildSeatPriceMap, formatPrice, sumSeatPrices } from '@/lib/seatPricing'
 import { useSeatSocket } from '@/state/useSeatSocket'
 
 /**
@@ -19,11 +22,22 @@ import { useSeatSocket } from '@/state/useSeatSocket'
  * confirm action — no seat grid here, matching a real checkout page. Only ever
  * meaningfully rendered while activeHold exists; AppLayout's sync-effect redirects away
  * otherwise, but that redirect only takes effect after this render commits, so
- * activeHold is handled defensively here (renders nothing) until then.
+ * activeHold is handled defensively here (renders nothing) until then. Reads the same
+ * layout AppLayout fetched once (via useSeatLayout) purely to price the held seats —
+ * it starts loading the moment AppLayout mounts, well before any hold could exist, so
+ * it's always already resolved by the time this page needs it.
  */
 export const CheckoutPage = () => {
   const navigate = useNavigate()
   const { activeHold, isConfirmPending, isConnected, confirmBooking } = useSeatSocket()
+  const { layout } = useSeatLayout()
+
+  const total = useMemo(() => {
+    if (!layout || !activeHold) {
+      return 0
+    }
+    return sumSeatPrices(activeHold.seatIds, buildSeatPriceMap(layout))
+  }, [layout, activeHold])
 
   if (!activeHold) {
     return null
@@ -59,6 +73,10 @@ export const CheckoutPage = () => {
                 {seatId}
               </span>
             ))}
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Total</span>
+            <span className="font-semibold tabular-nums">{formatPrice(total)}</span>
           </div>
           <Separator />
           <ActiveHoldStatus activeHold={activeHold} />
