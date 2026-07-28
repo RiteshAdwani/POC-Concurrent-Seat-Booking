@@ -9,6 +9,14 @@ export const ErrorMessages = {
   SeatSelectionLimitReached: (max: number) => `Max ${max} seats per booking`,
   HoldTransactionInProgress: 'Finish confirming or release your current hold before selecting more seats',
   MissingSeatSocketProvider: 'useSeatSocket must be used within a SeatSocketProvider',
+  MissingSeatLayoutProvider: 'useSeatLayout must be used within AppLayout',
   SeatLayoutFetchFailed: (status: number) => `Failed to load seat layout (${status})`,
   ConnectionLost: 'Reconnecting to the server…',
+} as const
+
+// Shown after a reconnect that had an active hold in flight — which of the two fires
+// depends on whether the disconnect stayed inside the server's recovery window.
+export const ConnectionMessages = {
+  HoldRecovered: 'Reconnected — your seat hold is safe.',
+  HoldNotRecovered: "Reconnected — your seat hold didn't survive the disconnect.",
 } as const

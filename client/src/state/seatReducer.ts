@@ -53,12 +53,12 @@ export enum SeatSocketActionType {
 }
 
 export type SeatSocketAction =
-  | { type: SeatSocketActionType.FullSync; snapshot: SeatsSnapshot }
+  | { type: SeatSocketActionType.FullSync; snapshot: SeatsSnapshot; recovered: boolean }
   | { type: SeatSocketActionType.StateChanged; seats: Array<{ seatId: SeatId; status: SeatStatus }> }
   | { type: SeatSocketActionType.SeatToggled; seatId: SeatId; maxSeatsPerBooking: number }
   | { type: SeatSocketActionType.HoldRequested }
   | { type: SeatSocketActionType.HoldConfirmed; hold: Omit<HoldBatch, 'isExpiringSoon'> }
-  | { type: SeatSocketActionType.HoldRejected }
+  | { type: SeatSocketActionType.HoldRejected; seatIds: SeatId[] }
   | { type: SeatSocketActionType.HoldExpiringSoon }
   | { type: SeatSocketActionType.ConfirmRequested }
   | { type: SeatSocketActionType.ConfirmSucceeded }
@@ -90,17 +90,22 @@ export const seatSocketReducer = (
 ): SeatSocketState => {
   switch (action.type) {
     case SeatSocketActionType.FullSync:
-      // A new sync means a new connection. The server has already released
-      // anything we were holding, so clear local hold/selection state too.
-      return {
-        ...state,
-        seats: action.snapshot,
-        selectedSeatIds: new Set(),
-        activeHold: null,
-        isHoldPending: false,
-        isConfirmPending: false,
-        isReleasePending: false,
-      }
+      // A recovered connection means the server preserved this socket's session —
+      // including any seat hold — across the disconnect, so leave local hold/selection
+      // state as-is. Any other sync (first connect, or a reconnect past the recovery
+      // window) means the server has already released whatever we were holding, so
+      // clear local state to match.
+      return action.recovered
+        ? { ...state, seats: action.snapshot }
+        : {
+            ...state,
+            seats: action.snapshot,
+            selectedSeatIds: new Set(),
+            activeHold: null,
+            isHoldPending: false,
+            isConfirmPending: false,
+            isReleasePending: false,
+          }
 
     case SeatSocketActionType.StateChanged: {
       const seats = { ...state.seats }
@@ -165,10 +170,22 @@ export const seatSocketReducer = (
         activeHold: { ...action.hold, isExpiringSoon: false },
       }
 
-    case SeatSocketActionType.HoldRejected:
-      // The hold attempt failed — nothing was ever held, so just clear the
-      // pending flag, there's no state to roll back.
-      return { ...state, isHoldPending: false }
+    case SeatSocketActionType.HoldRejected: {
+      // The hold attempt failed — nothing was ever held, so there's no hold state to
+      // roll back. The server rejects the whole batch as one atomic unit, but that
+      // doesn't mean every requested seat actually lost the race — cross-check against
+      // the live seats map (already current here: any StateChanged reporting the real
+      // conflict arrives, and is dispatched, before this rejection does) and only drop
+      // the seat(s) that are genuinely no longer Available. Everything else stays
+      // selected, so the user doesn't lose picks that are still there for the taking.
+      const selectedSeatIds = new Set(state.selectedSeatIds)
+      for (const seatId of action.seatIds) {
+        if (state.seats[seatId]?.status !== SeatStatus.Available) {
+          selectedSeatIds.delete(seatId)
+        }
+      }
+      return { ...state, isHoldPending: false, selectedSeatIds }
+    }
 
     case SeatSocketActionType.HoldExpiringSoon:
       // The server warned this hold is about to expire — flag it so the UI

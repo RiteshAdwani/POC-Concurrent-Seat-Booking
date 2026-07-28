@@ -60,18 +60,35 @@ export type SeatsSnapshot = Record<SeatId, SeatSnapshot>;
 // GET /api/seats response
 export type GetSeatsResponse = SeatsSnapshot;
 
-// One row's worth of pre-built seat IDs — the client never constructs a SeatId
-// itself, it only ever receives ones the server already built.
-export interface SeatRow {
-  label: string;
-  seatIds: SeatId[];
+// A pricing tier — purely a display/pricing concern, never touched by the
+// hold/confirm/release logic. Name is free text (Platinum/Gold/Silver, etc).
+export interface SeatTier {
+  name: string;
+  price: number;
 }
 
-// Static seat map shape — rows (with their seat IDs), columns (for header labels),
-// and the per-booking cap. Never changes at runtime, unlike SeatsSnapshot which
-// reflects live per-seat status.
-export interface SeatLayout {
+// One row's worth of pre-built seat IDs — the client never constructs a SeatId
+// itself, it only ever receives ones the server already built. A null entry means
+// there's no seat at that column in this row at all (an aisle/walkway) — not a real
+// seat that happens to be unavailable. No SeatId is ever created for that position,
+// so nothing downstream (validation, the store, a hold request) can reference it.
+export interface SeatRow {
+  label: string;
+  seatIds: (SeatId | null)[];
+}
+
+// A pricing category and the rows that belong to it — mirrors SEAT_CATEGORIES
+// directly, so the client can map straight over categories then rows without
+// having to regroup a flat row list itself.
+export interface SeatCategory extends SeatTier {
   rows: SeatRow[];
+}
+
+// Static seat map shape — categories (each with their rows/seat IDs), columns (for
+// header labels), and the per-booking cap. Never changes at runtime, unlike
+// SeatsSnapshot which reflects live per-seat status.
+export interface SeatLayout {
+  categories: SeatCategory[];
   cols: number[];
   maxSeatsPerBooking: number;
 }

@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { ROWS, COLS, SOFT_LOCK_MS, HARD_LOCK_MS, Messages } from "../constants";
+import { ROWS, COLS, SOFT_LOCK_MS, HARD_LOCK_MS, Messages, isSeatPosition } from "../constants";
 import { SeatId, SeatRecord, SeatStatus, SeatsSnapshot } from "../types";
 import { buildSeatId, buildEmptyRecord, recordToSnapshot } from "./helpers";
 
@@ -66,12 +66,15 @@ export class SeatStore {
   // ─── Initialisation ──────────────────────────────────────────────────────
 
   /**
-   * @description Populates the seat map with one Available record for every seat in the grid.
-   * Called once from the constructor; the map is never reset after that.
+   * @description Populates the seat map with one Available record for every real seat
+   * position in the grid, skipping aisle/walkway gaps entirely — no record is ever
+   * created for one, so there's nothing for a hold request to reference. Called once
+   * from the constructor; the map is never reset after that.
    */
   private init(): void {
     for (const row of ROWS) {
       for (const col of COLS) {
+        if (!isSeatPosition(row, col)) continue;
         this.seats.set(buildSeatId(row, col), buildEmptyRecord());
       }
     }
