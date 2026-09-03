@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -13,7 +14,7 @@ import {
 } from "./types";
 import { apiRoute, SEAT_LAYOUT, CONNECTION_RECOVERY_WINDOW_MS } from "./constants";
 
-const PORT = process.env.PORT ?? 3001;
+const PORT = process.env.PORT ?? 3000;
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN ?? "http://localhost:5173";
 
 const app = express();
