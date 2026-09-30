@@ -8,6 +8,9 @@ Real-time seat state is synced across all connected clients over Socket.IO, seat
 automatically, and a client's held seats survive a brief network drop (but not a long one) via
 Socket.IO's Connection State Recovery.
 
+**Live demo:** [Concurrent Seat Booking](https://poc-concurrent-seat-booking.netlify.app/seats)
+— open it in two tabs to see live sync between "users."
+
 ```mermaid
 flowchart LR
     Browse["Browse<br/>live seat map & availability"] --> Select["Select Seats<br/>choose preferred seats"]
